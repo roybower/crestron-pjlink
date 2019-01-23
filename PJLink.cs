@@ -17,9 +17,9 @@ public class PJLink
     private int Port=4352;      
     private int BufferSize=1000;
 
-    public bool PJLinkConnected;
-    public bool PJLinkPolling = true;   // polling enabled by default
-    public bool PJLinkDebugEnabled = true;     // debug messages enabled by default
+    public bool Connected;
+    public bool Polling = true;   // polling enabled by default
+    public bool DebugEnable = false;     // debug messages enabled by default
         
     // polling timers
     private CTimer PollPowerTimer;
@@ -36,20 +36,22 @@ public class PJLink
 
     public string currentSource;
     public uint lampHours;
+    private string friendlyName;
 
     // feedback strings
     public const string projOff = "0";
     public const string projOn = "1";
     public const string projWarming = "3";
     public const string projCooling = "2";
-    public string PJLinkPowerState;
+    public string PowerState;
 
 
-    private void Debug(string debugMessage)
+    private void Debug(string msg)
     {
-        if (PJLinkDebugEnabled)
+        if (DebugEnable)
         {
-            CrestronConsole.PrintLine("[PJLINK PROJECTOR] " + debugMessage);
+            //CrestronConsole.PrintLine("[PJLINK] " + debugMessage);
+            CrestronConsole.PrintLine("[{0}]{1}",friendlyName, msg);
         }
     }
 
@@ -58,52 +60,58 @@ public class PJLink
 
     #region public methods    
     
-
-    public void PJLinkInitialise(string IP)
+    
+    public void Init(string IP)
     {
         IPaddress = IP;        
         Debug("Initialising Client for PJLink Projector @ " + IPaddress);
         
         Client = new TCPClient(IPaddress, Port, BufferSize);
-        Client.SocketStatusChange += new TCPClientSocketStatusChangeEventHandler(PJLinkSocketStatusChange);
-        Client.ConnectToServerAsync(PJLinkConnectCallBack);
+        Client.SocketStatusChange += new TCPClientSocketStatusChangeEventHandler(SocketStatusChange);
+        Client.ConnectToServerAsync(ConnectCallBack);
         
-        PollPowerTimer = new CTimer(PJLinkPollPower, null, 3000, 3000);          //start 3 second timer to check power state
-        PollSourceTimer = new CTimer(PJLinkPollSource, null, 20000, 20000);      //start 20 second timer to check current source
-        PollLampHoursTimer = new CTimer(PJLinkPollLamp, null, 300000, 300000);   //start 30 minute second timer to check lamp hours  
+        PollPowerTimer = new CTimer(PollPower, null, 3000, 3000);          //start 3 second timer to check power state
+        PollSourceTimer = new CTimer(PollSource, null, 20000, 20000);      //start 20 second timer to check current source
+        PollLampHoursTimer = new CTimer(PollLamp, null, 300000, 300000);   //start 30 minute second timer to check lamp hours  
     }
+
+    public void SetFriendlyName(string name)
+    {
+       friendlyName = name;
+    }
+
 
    
     // method to enable or disable polling
-    public void PJLinkPollStatus(bool poll)
+    public void PollStatus(bool poll)
     {
         if (poll)
         {
             Debug("Polling Enabled");
-            PJLinkPolling = true;
+            Polling = true;
         }
         else
         {
             Debug("Polling Disabled");
-            PJLinkPolling = false;
+            Polling = false;
         }
     }
 
 
     // method to turn projector on/off
-    public void PJLinkPower(bool power)
+    public void Power(bool power)
     {
         if (power)
-           PJLinkSendDataToServer(powerOn);
+           SendDataToServer(powerOn);
         else
-           PJLinkSendDataToServer(powerOff);
+           SendDataToServer(powerOff);
     }
 
 
-    // method to change projector source input
-    public void PJLinkInputChange(string source)
+    // method to change projector source input (refer to protocol document)
+    public void InputChange(string source)
     {
-        PJLinkSendDataToServer(String.Concat(sourceChange," ",source,"\r"));
+        SendDataToServer(String.Concat(sourceChange," ",source,"\r"));
     }
     
 
@@ -113,24 +121,24 @@ public class PJLink
     #region device polling
     
 
-    private void PJLinkPollPower(object notUsed)
+    private void PollPower(object notUsed)
     {
-        if (PJLinkPolling)
-            PJLinkSendDataToServer(pollPower);
+        if (Polling && Connected)
+            SendDataToServer(pollPower);
     }
 
 
-    private void PJLinkPollSource(object notUsed)
+    private void PollSource(object notUsed)
     {
-        if (PJLinkPolling)
-            PJLinkSendDataToServer(pollSource);
+        if (Polling && Connected)
+            SendDataToServer(pollSource);
     }
 
 
-    private void PJLinkPollLamp(object notUsed)
+    private void PollLamp(object notUsed)
     {
-        if (PJLinkPolling)
-            PJLinkSendDataToServer(String.Concat(pollLamp, " \r"));
+        if (Polling && Connected)
+            SendDataToServer(String.Concat(pollLamp, " \r"));
     }
 
 
@@ -141,92 +149,92 @@ public class PJLink
 
 
     // client connect callback method
-    void PJLinkConnectCallBack(TCPClient Client)
+    void ConnectCallBack(TCPClient Client)
     {
         if (Client.ClientStatus == SocketStatus.SOCKET_STATUS_CONNECTED)
         {
-            Client.ReceiveDataAsync(PJLinkReceiveDataCallback); // set up callback when data received
+            Client.ReceiveDataAsync(ReceiveDataCallback); // set up callback when data received
         }
         else
         {
             CrestronEnvironment.Sleep(2000);
-            Client.ConnectToServerAsync(PJLinkConnectCallBack);  // connection failed, try again
+            Client.ConnectToServerAsync(ConnectCallBack);  // connection failed, try again
+            CrestronConsole.PrintLine("Attempting to reconnect PJLink Projector");
         }
     }
 
 
     // method to handle client socket status 
-    void PJLinkSocketStatusChange(TCPClient myTCPClient, SocketStatus clientSocketStatus)
+    void SocketStatusChange(TCPClient myTCPClient, SocketStatus clientSocketStatus)
     {
         Debug(String.Format("[PJLink Projector] LAN client ({1}) reports: {0}", clientSocketStatus, IPaddress));
 
         if (clientSocketStatus == SocketStatus.SOCKET_STATUS_CONNECTED)
         {
             CrestronEnvironment.Sleep(2000);
-            PJLinkConnected = true;
+            Connected = true;
             Debug("SOCKET CONNECTED!");
         }
         else
         {
-            PJLinkConnected = false;
+            Connected = false;
             CrestronEnvironment.Sleep(2000); //attempt reconnect after 2 seconds
-            Debug("SOCKET DISCONNECTED!");
-            Client.ConnectToServerAsync(PJLinkConnectCallBack);
+            Client.ConnectToServerAsync(ConnectCallBack);
         }
     }
 
 
     // client data received callback method
-    void PJLinkReceiveDataCallback(TCPClient client, int QtyBytesReceived)
+    void ReceiveDataCallback(TCPClient client, int QtyBytesReceived)
     {
         if (QtyBytesReceived > 0)
         {
             string dataReceived = Encoding.Default.GetString(Client.IncomingDataBuffer, 0, QtyBytesReceived);
-            PJLinkOnDataReceive(dataReceived);
-            client.ReceiveDataAsync(PJLinkReceiveDataCallback);
+            OnDataReceive(dataReceived);
+            client.ReceiveDataAsync(ReceiveDataCallback);
         }
         else
         {
             if (client.ClientStatus != SocketStatus.SOCKET_STATUS_CONNECTED)
             {
-                Client.ConnectToServerAsync(PJLinkConnectCallBack);  // connection dropped, try again!
+                Client.ConnectToServerAsync(ConnectCallBack);  // connection dropped, try again!
             }
         }
     }
 
 
-    void PJLinkOnDataReceive(string data)
+    void OnDataReceive(string data)
     {
         //Debug("data received = " + data);
 
         if (data.Contains("%1POWR=0"))
         {
-            PJLinkPowerState = projOff;
+            PowerState = projOff;
             Debug("Projector reports power off");
         }
 
         if (data.Contains("%1POWR=1"))
         {
-            PJLinkPowerState = projOn;
+            PowerState = projOn;
             Debug("Projector reports power on");
         }
 
         if (data.Contains("%1POWR=2"))
         {
-            PJLinkPowerState = projCooling;
+            PowerState = projCooling;
             Debug("Projector reports cooling down");
         }
 
         if (data.Contains("%1POWR=3")) 
         {
-            PJLinkPowerState = projWarming;
+            PowerState = projWarming;
             Debug("Projector reports warming up");
         }
 
         if (data.Contains("%1POWR=ERR3"))  //  unavailable time 
         {
             // nb: epson projector responds err3 when warming up
-            PJLinkPowerState = projWarming;
+            PowerState = projWarming;
             Debug("Projector reports unavailable");
         }
 
@@ -263,7 +271,7 @@ public class PJLink
     }
 
 
-    void PJLinkSendDataToServer(string cmd)
+    void SendDataToServer(string cmd)
     {
         Debug("data sent: " + cmd);
         Client.SendData(Encoding.ASCII.GetBytes(cmd), cmd.Length);            
