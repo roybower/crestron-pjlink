@@ -29,7 +29,7 @@ public class PJLink
     // command strings
     private string pollPower = "%1POWR ?\r";
     private string pollSource = "%1INPT ?\r";
-    private string pollLamp = "LAMP?";
+    private string pollLamp = "LAMP ?";
     private string powerOn = "%1POWR 1\r";
     private string powerOff = "%1POWR 0\r";
     private string sourceChange = "%1INPT "; // XX
