@@ -46,6 +46,9 @@ public class PJLink
     private CTimer PollSourceTimer;
     private CTimer PollLampHoursTimer;
 
+    // other times
+    private CTimer ReconnectTimer;
+
     // command strings
     private const string pollPower = "%1POWR ?\r";
     private const string pollSource = "%1INPT ?\r";
@@ -160,8 +163,7 @@ public class PJLink
         }
         else
         {
-            CrestronEnvironment.Sleep(2000);
-            Client.ConnectToServerAsync(ConnectCallBack);  // connection failed, try again
+            ReconnectTimer(Client.ConnectToServerAsync(ConnectCallBack), 2000);
             CrestronConsole.PrintLine("Attempting to reconnect PJLink Projector");
         }
     }
@@ -181,8 +183,7 @@ public class PJLink
         else
         {
             Connected = false;
-            CrestronEnvironment.Sleep(2000); //attempt reconnect after 2 seconds
-            Client.ConnectToServerAsync(ConnectCallBack);
+            ReconnectTimer(Client.ConnectToServerAsync(ConnectCallBack), 2000);
         }
     }
 
