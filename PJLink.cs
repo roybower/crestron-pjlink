@@ -14,12 +14,32 @@ public class PJLink
 
     private TCPClient Client;
     private string IPaddress;
-    private int Port=4352;      
-    private int BufferSize=1000;
+    private const int Port=4352;      
+    private const int BufferSize=1000;
 
-    public bool Connected;
-    public bool Polling = true;   // polling enabled by default
-    public bool DebugEnable = false;     // debug messages enabled by default
+    private bool disposed = false;
+
+    public bool Connected {get; private set}
+
+    private bool _polling;
+    public bool Polling 
+    {
+        get; 
+        set 
+        {
+            if (value)
+            {
+                Debug("Polling Enabled");
+                _polling = true;
+            }
+            else
+            {
+                Debug("Polling Disabled");
+                _polling = false;
+            }
+        }
+    }
+    public bool DebugEnable {get; set;}
         
     // polling timers
     private CTimer PollPowerTimer;
@@ -27,23 +47,23 @@ public class PJLink
     private CTimer PollLampHoursTimer;
 
     // command strings
-    private string pollPower = "%1POWR ?\r";
-    private string pollSource = "%1INPT ?\r";
-    private string pollLamp = "LAMP ?";
-    private string powerOn = "%1POWR 1\r";
-    private string powerOff = "%1POWR 0\r";
-    private string sourceChange = "%1INPT "; // XX
+    private const string pollPower = "%1POWR ?\r";
+    private const string pollSource = "%1INPT ?\r";
+    private const string pollLamp = "LAMP ?";
+    private const string powerOn = "%1POWR 1\r";
+    private const string powerOff = "%1POWR 0\r";
+    private const string sourceChange = "%1INPT "; // XX
 
-    public string currentSource;
-    public uint lampHours;
-    private string friendlyName;
+    public string currentSource {get; private set;}
+    public uint lampHours {get; private set;}
+    private string friendlyName {get; set;}
 
     // feedback strings
     public const string projOff = "0";
     public const string projOn = "1";
     public const string projWarming = "3";
     public const string projCooling = "2";
-    public string PowerState;
+    public string PowerState {get; set;}
 
 
     private void Debug(string msg)
@@ -78,23 +98,6 @@ public class PJLink
     public void SetFriendlyName(string name)
     {
        friendlyName = name;
-    }
-
-
-   
-    // method to enable or disable polling
-    public void PollStatus(bool poll)
-    {
-        if (poll)
-        {
-            Debug("Polling Enabled");
-            Polling = true;
-        }
-        else
-        {
-            Debug("Polling Disabled");
-            Polling = false;
-        }
     }
 
 
